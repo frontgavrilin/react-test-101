@@ -32,6 +32,12 @@ const useStyles = makeStyles((theme) => ({
   menuPaper: {
     maxHeight: 500,
   },
+  greenCell: {
+    backgroundColor: "lightgreen",
+  },
+  blueCell: {
+    backgroundColor: "lightblue",
+  },
 }));
 
 function Page() {
@@ -58,7 +64,15 @@ function Page() {
       sort: "name",
     },
   });
+
+  function compareChannels(a, b) {
+    const channelsA = a.tv ? (a.tv.channels_hd || 0) : 0;
+    const channelsB = b.tv ? (b.tv.channels_hd || 0) : 0;
+    return channelsB - channelsA;
+}
+
   const tariffsData = tariffs?.data?.tariffs?.data || [];
+  const sortedTariffs = tariffsData.slice().sort(compareChannels);  
 
   const handleChange = (event) => {
     const foundProvider = providersData.find(
@@ -69,6 +83,82 @@ function Page() {
     }
   };
 
+  const bestTariffs = [];
+  const findTariffs = (field) => {
+    if(field === "internet"){
+      const maxFieldValue = Math.max(
+        ...tariffsData.map((e) => e[field]?.speed_in || 0),
+      );
+      bestTariffs.push(
+        {
+          name: "Лучшая скорость",
+          value: tariffsData.map((e) => {
+            if(e[field]?.speed_in === maxFieldValue){
+              return e.name
+            }
+            return 0
+          }).filter((e) => e)
+        }
+      );
+      return tariffsData.filter((e) => (e[field]?.speed_in || 0) === maxFieldValue);
+    }
+    if(field === "displayPrice"){
+      const minFieldValue = Math.min(
+        ...tariffsData.map((e) => e[field] || 0),
+      );
+      bestTariffs.push(
+        {
+          name: "Лучшая цена",
+          value: tariffsData.map((e) => {
+            if(e[field] === minFieldValue){
+              return e.name
+            }
+            return 0
+          }).filter((e) => e)
+        }
+        );
+      return tariffsData.filter((e) => (e[field] || 0) === minFieldValue);
+    }
+    const maxFieldValue = Math.max(
+      ...tariffsData.map((e) => e[field]?.channels || 0),
+    );
+    bestTariffs.push(
+      {
+        name: "Больше каналов",
+        value: tariffsData.map((e) => {
+          if(e[field]?.channels === maxFieldValue){
+            return e.name
+          }
+          return 0
+        }).filter((e) => e)
+      }
+    );
+    return tariffsData.filter((e) => (e[field]?.channels || 0) === maxFieldValue);
+  };
+
+  const findTariffsHD = (field) => {
+    const maxFieldValue = Math.max(...tariffsData.map((e) => e[field]?.channels_hd || 0));
+    const channelsHD = tariffsData.map((e) => {
+      if(e[field]?.channels_hd === maxFieldValue && maxFieldValue){
+        console.log(e[field]?.channels_hd)
+        return e.name
+      }
+      return 0
+    }).filter((e) => e);
+    bestTariffs.push(
+      {
+        name: "Больше HD каналов",
+        value: channelsHD.length ? channels : ["-"]
+      }
+    );
+    return tariffsData.filter((e) => (e[field]?.channels_hd || 0) === maxFieldValue)
+  }
+
+  const price = findTariffs("displayPrice");
+  const internetSpeed = findTariffs("internet");
+  const channels = findTariffs("tv");
+  const channelsHD = findTariffsHD("tv");
+  
   return (
     <Container>
       <Typography variant="h3" component="h2">
@@ -101,19 +191,83 @@ function Page() {
           <TableHead>
             <TableRow>
               <TableCell>Название тарифа</TableCell>
+              <TableCell>Цена</TableCell>
+              <TableCell>Скорость интернета</TableCell>
+              <TableCell>Количество телеканалов</TableCell>
+              <TableCell>Количество HD-телеканалов</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {tariffsData.map((tariff) => (
+            {sortedTariffs.map((tariff) => (
               <TableRow key={tariff.id}>
                 <TableCell component="th" scope="row">
                   {tariff.name}
+                </TableCell>
+                <TableCell
+                  className={
+                    price.find((e) => e.id === tariff.id)
+                      ? classes.greenCell
+                      : price.length > 1 &&
+                      price.find((e) => e.displayPrice === tariff.displayPrice)
+                      ? classes.blueCell
+                      : ""
+                  }
+                >
+                  {tariff.displayPrice || "-"}
+                </TableCell>
+                <TableCell
+                  className={
+                    internetSpeed.find((e) => e.id === tariff.id)
+                      ? classes.blueCell
+                      : internetSpeed.length > 1 &&
+                        internetSpeed.find((e) => e.internet.speed_in === tariff.internet.speed_in)
+                      ? classes.greenCell
+                      : ""
+                  }
+                >
+                  {tariff.internet.speed_in || "-"}
+                </TableCell>
+                <TableCell
+                  className={
+                    channels.find((e) => e.id === tariff.id) ? classes.blueCell : channels.length > 1 &&
+                      channels.find((e) => e.tv?.channels === tariff.tv?.channels)
+                      ? classes.greenCell
+                      : ""
+                  }
+                >
+                  {tariff.tv?.channels || "-"}
+                </TableCell>
+                <TableCell
+                  className={
+                    channelsHD.find((e) => e.id === tariff.id) && tariff.tv?.channels_hd
+                      ? classes.blueCell
+                      : channelsHD.length > 1 &&
+                      channelsHD.find((e) => e.tv?.channels_hd === tariff.tv?.channels_hd)
+                      ? classes.greenCell && tariff.tv?.channels_hd
+                      : ""
+                  }
+                >
+                  {tariff.tv?.channels_hd || "-"}
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
-      </TableContainer>
+      </TableContainer >
+      <TableContainer component={Paper}>
+        <Table>
+          <TableBody>
+            {bestTariffs.map((e) => (
+              <TableRow>
+                <TableCell>{e.name}</TableCell>
+                <TableCell align="left">
+                  {e.value.join(", ")}
+                </TableCell>
+              </TableRow>
+            ))} 
+          </TableBody>
+        </Table>
+    </TableContainer>
     </Container>
   );
 }
